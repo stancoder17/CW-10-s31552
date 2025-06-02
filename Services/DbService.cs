@@ -63,67 +63,47 @@ public class DbService(TripAgencyDbContext context) : IDbService
     public async Task<GetClientTripDto> AddClientToTripAsync(int idTrip, AddClientToTripDto dto, CancellationToken cancellationToken)
     {
         // Check if the client exists.
-        if (await context.Clients.AnyAsync(c => c.Pesel == dto.Pesel, cancellationToken))
-            throw new BadRequestException($"Client with PESEL {dto.Pesel} already exists.");
+        var client = await context.Clients.Include(client => client.ClientTrips).FirstOrDefaultAsync(c => c.IdClient == dto.IdClient, cancellationToken);
+        if (client == null)
+            throw new NotFoundException($"Client with id {dto.IdClient} doesn't exist.");
         
-        /*
-         * I'm not checking if the client is already on this trip, because that would mean that he already exists, which we check above.
-         */
-
         // Check if the trip exists.
         var trip = await context.Trips.FirstOrDefaultAsync(t => t.IdTrip == idTrip, cancellationToken);
         if (trip == null)
             throw new NotFoundException($"Trip with id {idTrip} not found.");
-        
+
         // Check if the trip has already started/taken place.
         if (trip.DateFrom < DateTime.Now)
             throw new BadRequestException("The trip has already started/taken place.");
-
-        var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        try
+        
+        // Check if the client is already registered on the trip.
+        if (client.ClientTrips.Any(ct => ct.IdTrip == idTrip))
+            throw new BadRequestException("Client is already registered for this trip.");
+        
+        var registeredAt = DateTime.Now;
+        await context.ClientTrips.AddAsync(new ClientTrip
         {
-            var client = new Client
-            {
-                FirstName = dto.FirstName,
-                LastName = dto.LastName,
-                Email = dto.Email,
-                Telephone = dto.Telephone,
-                Pesel = dto.Pesel,
-            };
-            await context.Clients.AddAsync(client, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken); // IdClient that we'll need is auto-generated to the changes have to be saved here.
+            IdClient = client.IdClient,
+            IdTrip = trip.IdTrip,
+            RegisteredAt = DateTime.Now,
+            PaymentDate = dto.PaymentDate
+        }, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
 
-            var registeredAt = DateTime.Now;
-            await context.ClientTrips.AddAsync(new ClientTrip
-            {
-                IdClient = client.IdClient,
-                IdTrip = trip.IdTrip,
-                RegisteredAt = registeredAt,
-                PaymentDate = dto.PaymentDate
-            }, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-
-            return new GetClientTripDto
-            {
-                FirstName = client.FirstName,
-                LastName = client.LastName,
-                Pesel = client.Pesel,
-                TripName = trip.Name,
-                Description = trip.Description,
-                DateFrom = trip.DateFrom,
-                DateTo = trip.DateTo,
-                RegisteredAt = registeredAt,
-                PaymentDate = dto.PaymentDate
-            };
-        }
-        catch (Exception)
+        return new GetClientTripDto
         {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+            FirstName = client.FirstName,
+            LastName = client.LastName,
+            Pesel = client.Pesel,
+            TripName = trip.Name,
+            Description = trip.Description,
+            DateFrom = trip.DateFrom,
+            DateTo = trip.DateTo,
+            RegisteredAt = registeredAt,
+            PaymentDate = dto.PaymentDate
+        }; 
     }
-
+    
     private static void ValidatePageNumber(int page)
     {
         if (page < 1)
