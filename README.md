@@ -1,7 +1,7 @@
 # Trip Management API – .NET Core + EF Core (Database First)
 
 This project was created as part of my studies in computer science at **Polish-Japanese Academy of Information Technology.**  
-The goal was to practice the **database-first** approach using Entity Framework Core library.
+The goal was to practice the **Database First** approach using Entity Framework Core library.
 
 The application connects to an existing database and exposes a few endpoints that allow:
 - **listing** trips with optional pagination
@@ -23,13 +23,13 @@ If the client is linked to at least one trip, the server returns an appropriate 
 
 ### Assigning client to a trip
 - Request body must include client data. Validation includes:
-- checking if a client with the same **PESEL** (unique for all Poles :-]) **already exists**
+- checking if a client with the same **PESEL** (a national ID number in Poland) **already exists**
 - checking if the client is **already assigned** to this trip
 - verifying that the trip **exists** and has **not yet started** (DateFrom must be in the future)
 - PaymentDate can be null. RegisteredAt is automatically set to the **current server time**.
 
 The code is separated into different **layers**:
-1. **Database access and business logic** layer (there is no separate layer for database access, because of the small size of the project)
+1. Due to the small size of the project, **data access** and **business logic** are handled in the same layer.
 2. **Controller** layer
 
 # CW-10-s31552
